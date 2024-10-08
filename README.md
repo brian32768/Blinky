@@ -1,11 +1,18 @@
-= Blinky
+# Blinky
 
 Started as a program to blink the led on a Pi Pico.
 Now supports GPS on a UART port.
 Parses NMEA using minmea and spits it out
 on the USB UART port via the Pi Debug Probe.
 
-== Serial ports on Pico
+I have a Raspberry Pi 5 running openocd.
+A Pi Debug Module plugs into it.
+I can watch the serial ports using Minicom on the Pi 5.
+I can write code on the desktop Murre or laptop Pearl
+using Visual Studio Code with the Pi Pico profile installed.
+The debugger works, this is so cool.
+
+## Serial ports on Pico
 
 With the USB cable plugged in, on the Pi 5, I can see
 
@@ -55,13 +62,13 @@ Connecting via minicom with "minicom -D /dev/ttyACM0 -b 9600" shows nothing. So 
 * Orange wire (TX) to pin 12 aka GP9 aka RX1
 * Black wire to pin 13 aka GND
 
-== GPS
+## GPS
 
+The GPS receiver I am using today is the M5Stack BDS/GPS Grove module. Based on the AT6558 chip by Casic.
 I need to reprogram the GPS, as received it does not
-put out the sentences I want and it only receives
-Beidou and GLONASS satellites.
+put out the sentences I want.
 
-I can have it do any combination of Beidou, GLONASS
+This chip can receive any combination of Beidou, GLONASS
 and Navstar.
 
 Supported sentences by default include
@@ -71,12 +78,10 @@ GSV sats in view, elevation, azimuth
 GLL lat lon and time
 TXT model # and antenna is "open", it's using an internal antenna
 
-=== Notes on this GPS receiver
-
 * There is a button cell to facilitate hot restarts
 * The LED is wired directly to its 1PPS output.
 
-== Reprogramming
+## Reprogramming
 
 Query product information
 
@@ -107,18 +112,13 @@ Compatible with NMEA 4.1
 
 $PCAS05,2*<cs>\r\n
 
-== Resources
+I wrote a Python program to change settings.
+I used a USB to TTL adapter and connected the 
+GPS directly to my Windows laptop.
 
-M5stack GPS/BDS unit based on Casic AT6558
+The program is called **m5gps_settings.py**.
 
-https://espruino.microcosm.app/api/v1/files/68b597874e0a617692ebebc6a878032f76b34272.pdf
-
-
-## Overview
-
-Python program to change settings on an M5stack BDS/GPS module.
-
-## Set up
+## Set up Python environment
 
 conda create --name=gps
 conda activate gps
@@ -126,13 +126,14 @@ conda install -c conda-forge pynmeagps pyserial
 
 Once you have reprogrammed a unit, it will
 need further commands sent at 115200 instead of 9600.
+That's set directly in the code so you have to change it.
 
-## Notes
+### Some test notes
 
-On power up, each unit reports the same firmware
-but a unique serial number, that's good.
+I have 3 modules. On power up, each unit reports the same firmware but a unique serial number, that's good.
 
-#3 seems weaker than the other two. Maybe it will be okay outdoors. I feel it might need a battery too.
+#3 seems weaker than the other two. Maybe it will be okay outdoors. I feel it might need a new battery too, it seems
+to need a full cold start every time I power it up.
 
 #1 says
 
@@ -166,3 +167,10 @@ $GPTXT,01,01,02,TB=2020-04-28,13:43:10*40
 $GPTXT,01,01,02,MO=GB*77
 $GPTXT,01,01,02,BS=SOC_BootLoader,V6.2.0.2*34
 $GPTXT,01,01,02,FI=00856014*71
+
+## Resources
+
+M5stack GPS/BDS unit based on Casic AT6558
+
+https://espruino.microcosm.app/api/v1/files/68b597874e0a617692ebebc6a878032f76b34272.pdf
+
