@@ -8,7 +8,7 @@
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "external",
-            "gdbTarget": "asl:3333",
+            "gdbTarget": "192.168.123.22:3333",
             "gdbPath": "${command:raspberry-pi-pico.getGDBPath}",
             "device": "${command:raspberry-pi-pico.getChipUppercase}",
             "svdFile": "${userHome}/.pico-sdk/sdk/2.0.0/src/${command:raspberry-pi-pico.getChip}/hardware_regs/${command:raspberry-pi-pico.getChipUppercase}.svd",
