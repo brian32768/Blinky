@@ -5,9 +5,20 @@ Now supports GPS on a UART port.
 Parses NMEA using minmea and spits it out
 on the USB UART port via the Pi Debug Probe.
 
-I have a Raspberry Pi 5 running openocd.
-A Pi Debug Module plugs into it.
-I can watch the serial ports using Minicom on the Pi 5.
+I have a Raspberry Pi 5 running openocd, like this:
+
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000" -c "bindto 0.0.0.
+0"
+```
+
+A Pi Debug Module plugs into USB on the Pi 5. I can watch the serial ports using Minicom on the Pi 5.
+Listen to the console,
+
+```bash
+minicom -D /dev/ttyACM1
+```
+
 I can write code on the desktop Murre or laptop Pearl
 using Visual Studio Code with the Pi Pico profile installed.
 The debugger works, this is so cool.
