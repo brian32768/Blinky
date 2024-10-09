@@ -3,9 +3,14 @@
 #
 from serial import Serial
 
-PORT="COM8"
+PORT="COM8" # Pearl
+PORT="/dev/ttyUSB0" # Murre
+BPS = 9600 # factory setting
+#BPS = 115200 # after reprogramming
+
 
 def checksum(sentence):
+    # Given the body of a NMEA sentence calculate its checksum.
     calc_cksum = 0
     for s in sentence:
         calc_cksum ^= ord(s)
@@ -18,13 +23,8 @@ def buildnmea(talker, cmd, payload):
     cmd = '$' + msg + '*' + cs + '\r\n'
     return cmd.encode('utf-8')
 
-bps = 115200 # after reprogramming
-#bps = 9600 # factory setting
-stream = Serial('COM8', bps, timeout=3)
 
-#msg = buildnmea('P', 'CAS06', '0') # Read firmware version
-#print(msg)
-#stream.write(msg)
+stream = Serial(PORT, BPS, timeout=3)
 
 # Best is probably GPS and Beidou
 msg = buildnmea('P', 'CAS04', '3') # GPS, BDS
@@ -64,14 +64,14 @@ print(msg)
 stream.write(msg)
                 
 # Change data rate
-msg = buildnmea('P', 'CAS01', '1') # 9600
-#msg = buildnmea('P', 'CAS01', '5') # 115200
+#msg = buildnmea('P', 'CAS01', '1') # 9600
+msg = buildnmea('P', 'CAS01', '5') # 115200
 print(msg)
 stream.write(msg)
 
 # Change update rate
-msg = buildnmea('P', 'CAS02', '1000') # 2/second
+#msg = buildnmea('P', 'CAS02', '1000') # 2/second
 #msg = buildnmea('P', 'CAS02', '500') # 2/second
-#msg = buildnmea('P', 'CAS02', '200') # 5/second
+msg = buildnmea('P', 'CAS02', '200') # 5/second
 print(msg)
 stream.write(msg)
