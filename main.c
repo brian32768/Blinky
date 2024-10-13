@@ -3,7 +3,6 @@
 #include "hardware/spi.h"
 #include "hardware/watchdog.h"
 #include "hardware/uart.h"
-
 #include "minmea.h"
 
 // SPI Defines
@@ -27,14 +26,22 @@
 
 #define NEXTION_UART_ID uart1
 #define NEXTION_BPS 9600
-#define NEXTION_UART_TX_PIN 8 // GP8
-#define NEXTION_UART_RX_PIN 9 // GP9
+#define NEXTION_UART_TX_PIN 8 // GP8 on Pico pin 11
+#define NEXTION_UART_RX_PIN 9 // GP9 on Pico pin 12
 
+#define EOF_char 0xFF
 
 #define LED_PIN PICO_DEFAULT_LED_PIN
 unsigned int sentences_rxed = 0;
 
-void parse(char *line) {
+bool debug = true;
+
+float lat = 0.00;
+float lon = 0.00;
+float course = 0.00;
+float speed = 0.00;
+
+void gpsParse(char *line) {
     
     char talker[3];
     minmea_talker_id(talker, line);
@@ -55,9 +62,12 @@ void parse(char *line) {
                 printf("$GLL fixed-point coordinates: (%d,%d)\n",
                         minmea_rescale(&frame.latitude, 1000),
                         minmea_rescale(&frame.longitude, 1000));
+                
+                float lat, lon; // ignore, use RMC version
+                lat = minmea_tocoord(&frame.latitude);
+                lon = minmea_tocoord(&frame.longitude);
                 printf("$GLL floating point degree coordinates: (%f,%f)\n",
-                        minmea_tocoord(&frame.latitude),
-                        minmea_tocoord(&frame.longitude));
+                        lat, lon);
             }
         } break;
             
@@ -82,29 +92,15 @@ void parse(char *line) {
         } break;
             
         case MINMEA_SENTENCE_RMC: {
-            static float current_lat = 0;
-            static float current_lon = 0;
             struct minmea_sentence_rmc frame;
             if (minmea_parse_rmc(&frame, line)) {
-                float lat = minmea_tocoord(&frame.latitude);
-                float lon = minmea_tocoord(&frame.longitude);
-                if (lat != current_lat || lon != current_lon) {
-    /*                printf("$RMC raw: (%d/%d,%d/%d) %d/%d\n",
-                            frame.latitude.value, frame.latitude.scale,
-                            frame.longitude.value, frame.longitude.scale,
-                            frame.speed.value, frame.speed.scale);
-                    printf("     fixed-point, 3 places: (%d,%d) %d\n",
-                            minmea_rescale(&frame.latitude, 1000),
-                            minmea_rescale(&frame.longitude, 1000),
-                            minmea_rescale(&frame.speed, 1000));
-    */
-                    float knots = minmea_tofloat(&frame.speed);
-                    float mph = knots * 1.150779;
-                    float course = minmea_tofloat(&frame.course);
-                    printf("$RMC: (%f,%f) course: %f %f speed: %f mph\n", lat,lon, course, mph);
-                    current_lat = lat;
-                    current_lon = lon;
-                }
+                lat = minmea_tocoord(&frame.latitude);
+                lon = minmea_tocoord(&frame.longitude);
+                float knots = minmea_tofloat(&frame.speed);
+                speed = knots * 1.150779;
+                course = minmea_tofloat(&frame.course);
+                printf("$RMC: (%f,%f) course: %f speed: %f mph\n", 
+                    lat,lon, course, speed);
             }
         } break;
 
@@ -168,7 +164,7 @@ void on_gps_rx() {
         if (ch == '\n') {
             gpio_put (LED_PIN, 0); // turn off led
             inx = 0;
-            parse(sentence);
+            gpsParse(sentence);
             nmea_sentence_ready = true;
         } else {
             gpio_put (LED_PIN, 1); // turn on led
@@ -179,16 +175,54 @@ void on_gps_rx() {
     }
 }
 
-int main()
-{
-    stdio_init_all();
+// RX interrupt handler for the Nextion touch screen,
+// I really should write this.
+void on_nextion_rx() {
+    return;
+}
 
-    // Enable the watchdog, requiring the watchdog to be updated periodically or the chip will reboot
-    // second arg is pause on debug which means the watchdog will pause when stepping through code
-    watchdog_enable(1000, 1);
+// Send a command to the Nextion display.
+void sendCmd(char *s) {
+    if (debug) {
+        printf("%s\n",s);
+    }
+    uart_puts(NEXTION_UART_ID, s);
+    uart_putc(NEXTION_UART_ID, EOF_char);
+    uart_putc(NEXTION_UART_ID, EOF_char);
+    uart_putc(NEXTION_UART_ID, EOF_char);
+    return;
+}
 
-    // SPI initialisation. This example will use SPI at 1MHz.
-    spi_init(SPI_PORT, 1000*1000);
+// Set screen brightness, 0..100
+void setBrightness(int level) {
+    char cmd[10];
+    sprintf(cmd,"dim=%d", level);
+    sendCmd(cmd);
+}
+
+
+void setLat(float d) {
+    char cmd[40];
+    sprintf(cmd,"page0.lat.txt=\"%f\"", d);
+    sendCmd(cmd);
+}
+
+void setLon(float d) {
+    char cmd[40];
+    sprintf(cmd,"page0.lon.txt=\"%f\"", d);
+    sendCmd(cmd);
+}
+
+void setSpeed(float d) {
+    char cmd[40];
+    sprintf(cmd,"page1.speed.txt=\"%f mph\"", d);
+    sendCmd(cmd);
+}
+
+void init_canbus() {
+    // SPI initialization. 
+    // For more examples of SPI use see https://github.com/raspberrypi/pico-examples/tree/master/spi
+    spi_init(SPI_PORT, 1000*1000); // 1 MHz
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_CS,   GPIO_FUNC_SIO);
     gpio_set_function(PIN_SCK,  GPIO_FUNC_SPI);
@@ -196,15 +230,11 @@ int main()
     // Chip select is active-low, so we'll initialise it to a driven-high state
     gpio_set_dir(PIN_CS, GPIO_OUT);
     gpio_put(PIN_CS, 1);
-    // For more examples of SPI use see https://github.com/raspberrypi/pico-examples/tree/master/spi
+}
 
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+// See https://github.com/raspberrypi/pico-examples/tree/master/uart
 
-    // ---- UART set up ----
-
-    // For more examples of UART use see https://github.com/raspberrypi/pico-examples/tree/master/uart
-
+void init_gps() {
     // Set up UART for the GPS receiver
     uart_init(GPS_UART_ID, GPS_BPS);
     gpio_set_function(GPS_UART_TX_PIN, UART_FUNCSEL_NUM(GPS_UART_ID, GPS_UART_TX_PIN));
@@ -213,44 +243,96 @@ int main()
     uart_set_format(GPS_UART_ID, 8,1,UART_PARITY_NONE);
     uart_set_fifo_enabled(GPS_UART_ID, false);
 
+    // Set up interrupt for GPS receiver
+    int gps_irq = (GPS_UART_ID == uart0) ? UART0_IRQ : UART1_IRQ;
+    irq_set_exclusive_handler(gps_irq, on_gps_rx);
+    irq_set_enabled(gps_irq, true);
+    uart_set_irq_enables(GPS_UART_ID, true, false);
+}
+
+void init_nextion() {
     // Set up UART for the Nextion LCD receiver
-    // For more examples of UART use see https://github.com/raspberrypi/pico-examples/tree/master/uart
     uart_init(NEXTION_UART_ID, NEXTION_BPS);
     gpio_set_function(NEXTION_UART_TX_PIN, UART_FUNCSEL_NUM(NEXTION_UART_ID, NEXTION_UART_TX_PIN));
     gpio_set_function(NEXTION_UART_RX_PIN, UART_FUNCSEL_NUM(NEXTION_UART_ID, NEXTION_UART_RX_PIN));
     uart_set_hw_flow(NEXTION_UART_ID, false, false); // No CTS or RTS
     uart_set_format(NEXTION_UART_ID, 8,1,UART_PARITY_NONE);
-    uart_set_fifo_enabled(NEXTION_UART_ID, true);
+    uart_set_fifo_enabled(NEXTION_UART_ID, false);
 
-    // Set up interrupt for GPS receiver
-    int UART_IRQ = (GPS_UART_ID == uart0) ? UART0_IRQ : UART1_IRQ;
-    irq_set_exclusive_handler(UART_IRQ, on_gps_rx);
-    irq_set_enabled(UART_IRQ, true);
+    // Set up interrupt for Nextion touchscreen
+    int nextion_irq = (NEXTION_UART_ID == uart0) ? UART0_IRQ : UART1_IRQ;
+    irq_set_exclusive_handler(nextion_irq, on_nextion_rx);
+    irq_set_enabled(nextion_irq, true);
+    uart_set_irq_enables(NEXTION_UART_ID, true, false);
+}
 
-    // Now enable the UART to send interrupts - RX only
-    uart_set_irq_enables(GPS_UART_ID, true, false);
+int main()
+{
+    float oldlat, oldlon, oldspeed;
 
+    stdio_init_all();
+
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_put (LED_PIN, 0); // turn off led
+
+    //init_canbus();
+    init_gps();
+    init_nextion();
+
+    sleep_ms(1000); // whatever... wait for things to stabilize??  
     gpio_put (LED_PIN, 1); // turn on led
 
+    // Enable the watchdog, requiring the watchdog to be updated periodically or the chip will reboot
+    // second arg is pause on debug which means the watchdog will pause when stepping through code
+    /*watchdog_enable(2000, 1);
     if (watchdog_caused_reboot()) {
-        printf("Rebooted by Watchdog!\n");
+        printf("Attendez! Rebooted by Watchdog! =============================== \n");
+    } else */ {
+        printf("Rebooted normally.\n");
+        if (debug) printf("Debug is ON.\n");
     }
+
+    // Initialize the Nextion display
+    setBrightness(20); // Turn on the backlight
+    sendCmd("page 0"); // Display page 0
+    sendCmd("vis gps,0"); // Turn off the satellite picture
+
+// not much going on in the main loop. not yet anyway.
 
     while (true) {
         static int rxed = 0;
-        watchdog_update();
+        //watchdog_update();
 //        if (nmea_sentence_ready) {
-//            parse(sentence);
+//            gpsParse(sentence);
 //            nmea_sentence_ready = false;
 //        }
+
+// Test uart1 by spitting out GPS data to it.
+/*
         if (sentences_rxed != rxed) {
             rxed = sentences_rxed;
             if (uart_is_writable(NEXTION_UART_ID)) {
                 uart_puts(NEXTION_UART_ID, sentence);
                 uart_puts(NEXTION_UART_ID, "\r\n");
+
             }
             //printf("%d\n", sentences_rxed);
         }
-        sleep_ms(200);
+*/
+        if (lat != oldlat) {
+            setLat(lat);
+            oldlat = lat;
+        }
+        if (lon != oldlon) {
+            setLon(lon);
+            oldlon = lon;
+        }
+        if (speed != oldspeed) {
+            setSpeed(speed);
+            oldspeed = speed;
+        }
+
+        sleep_ms(100);
     }
 }

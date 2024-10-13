@@ -67,17 +67,103 @@ crw-rw---- 1 root dialout 204, 74 Oct  3 21:40 /dev/ttyAMA10
 ```
 
 This leads me to conclude that the Debug Probe serial port is ttyACM0.
-Connecting via minicom with "minicom -D /dev/ttyACM0 -b 9600" shows nothing. So perhaps I got the wires backwards. Yup. 
+Connecting via minicom with "minicom -D /dev/ttyACM0 -b 9600" shows nothing. Perhaps I got the wires backwards. Yup. They should be:
+
+### Debug Module UART to Pico UART1
 
 * Yellow wire (RX) to pin 11 aka GP8 aka TX1
 * Orange wire (TX) to pin 12 aka GP9 aka RX1
 * Black wire to pin 13 aka GND
 
+### Bus Pirate 3
+
+See https://learn.sparkfun.com/tutorials/bus-pirate-v36a-hookup-guide
+
+Brown = GND
+Red = 3V3
+Orange = 5V
+Yellow = ADC
+Green = VPU
+Blue = AUX
+Violet = CLK
+Grey = MOSI (TX)
+White = CS
+Black = MISO (RX)
+
+### Pico UART1 to Nextion NX3224TO24
+
+* Yellow wire (RX) to pin 11 aka GP8 aka TX1
+* Blue wire (TX) to pin 12 aka GP9 aka RX1
+* Red to +5
+* Black to GND
+
+### Nextion tester
+
+Connection Nextion directly to host using USB-UART cable
+or UART port on Debug Module.
+
+```bash
+conda create --name=nextion python
+conda activate nextion
+conda install pyserial netifaces
+python nextion.py
+```
+
+This works, when the python script runs, you can see the
+time changing on the Nextion. Tick tock.
+
+So, I have a program that can send command to a Nextion using Python
+from either a Linux desktop (Murre) or a Pi 5 (ASL).
+I need it to work from the Pico. 
+
+#### Next steps
+
+1. Connect the Bus Pirate to the USB-UART adapter and see what the
+strings look like coming from Murre. There should be no surprises.
+
+* Set both sides to 9600 8N1. (Use Bus Pirate interactive mode)
+* Bus pirate Brown to UART Black
+* Bus pirate Black (RX) to UART Green
+* Bus pirate Brown (TX) to UART White
+In Bus Pirate, 
+* Use 'm' to set up UART mode (including setting to 9600).
+* Use '{' to set it to receive bytes from UART.
+Data received will display in the Bus Pirate in hex mode. 
+
+Run the nextion.py program and observe. There should be a command
+each second, followed by three 0xFF characters.
+
+This is what it looks like when it captures a screen bright command.
+
+```bash
+READ: 0x69    d
+READ: 0x69    i                                      
+READ: 0x6D    m                          
+READ: 0x3D    =                          
+READ: 0x31    1                            
+READ: 0x30    0                   
+READ: 0x30    0                
+READ: 0xFF                                 
+READ: 0xFF                                  
+READ: 0xFF          
+```
+
+2. Connect the Bus Pirate to the Pico. The strings should look the same.
+If not, figure out why not.
+
+AH. Well I had EOF set to 0x1F instead of 0xFF. That was it.
+
 ## GPS
 
-The GPS receiver I am using today is the M5Stack BDS/GPS Grove module. Based on the AT6558 chip by Casic.
-I need to reprogram the GPS, as received it does not
+The GPS receiver is the M5Stack BDS/GPS Grove module. Based on the AT6558 chip by Casic. I need to reprogram the GPS, as received it does not
 put out the sentences I want.
+
+### GPS Grove connection to Pico
+
+* White wire (RX) to pin 1 (GP0) TX0
+* Yellow wire (TX) to pin 2 (GP1) RX0
+* Red wire pin 40 VBUS
+* Black wire GND
 
 This chip can receive any combination of Beidou, GLONASS
 and Navstar.
