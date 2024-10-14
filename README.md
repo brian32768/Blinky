@@ -178,7 +178,7 @@ TXT model # and antenna is "open", it's using an internal antenna
 * There is a button cell to facilitate hot restarts
 * The LED is wired directly to its 1PPS output.
 
-## Reprogramming
+## Reprogramming BDS/GPS modules
 
 Query product information
 
@@ -264,6 +264,43 @@ $GPTXT,01,01,02,TB=2020-04-28,13:43:10*40
 $GPTXT,01,01,02,MO=GB*77
 $GPTXT,01,01,02,BS=SOC_BootLoader,V6.2.0.2*34
 $GPTXT,01,01,02,FI=00856014*71
+
+## Design the HMI in the Nextion Editor
+
+It's a Windows dotnet35 program. I have it installed on Pearl under Windows 11 but also got it running in WINE.
+
+I followed instructions I found here:
+https://forum.winehq.org/viewtopic.php?p=128808#p128808
+
+```bash
+apt install wine winetricks
+sudo winetricks --self-update
+WINEPREFIX=~/.nextion wine nextion-setup-v1-67-1.exe
+```
+
+I had to resize the fonts to make them visible, this works fine in 
+WINE, probably some way to change it in Windows too if I care to try.
+https://forum.winehq.org/viewtopic.php?t=27330
+
+```bash
+WINEPREFIX=~/.nextion winecfg
+```
+
+### Running Nextion Editor in WINE
+
+There is a symlink so the Nextion files in WINE will show up in 
+C:/Users/bwilson/Documents/Dropbox/Projects/RP2040/Blinky/Nextion/
+
+```bash
+cd ~/.nextion/drive_c/
+cp alba.* ~/.nextion/drive_c/
+```
+Running it is like this
+
+```bash
+cd ~/.nextion/drive_c/Program\ Files/Nextion\ Editor/
+WINEPREFIX=~/.nextion wine Nextion\ Editor.exe
+```
 
 ## Resources
 

@@ -40,6 +40,7 @@ float lat = 0.00;
 float lon = 0.00;
 float course = 0.00;
 float speed = 0.00;
+bool haveFix = false;
 
 void gpsParse(char *line) {
     
@@ -63,7 +64,6 @@ void gpsParse(char *line) {
                         minmea_rescale(&frame.latitude, 1000),
                         minmea_rescale(&frame.longitude, 1000));
                 
-                float lat, lon; // ignore, use RMC version
                 lat = minmea_tocoord(&frame.latitude);
                 lon = minmea_tocoord(&frame.longitude);
                 printf("$GLL floating point degree coordinates: (%f,%f)\n",
@@ -111,12 +111,15 @@ void gpsParse(char *line) {
                 switch(frame.fix_quality) { 
                 case 0:
                     s = "NO FIX";
+                    haveFix = false;
                     break;
                 case 1:
                     s = "FIX";
+                    haveFix = true;
                     break;
                 case 2:
                     s = "DGPS FIX";
+                    haveFix = true;
                     break;
                 default:
                     s = "OTHER";
@@ -269,6 +272,7 @@ void init_nextion() {
 int main()
 {
     float oldlat, oldlon, oldspeed;
+    bool oldFix = true;
 
     stdio_init_all();
 
@@ -296,7 +300,7 @@ int main()
     // Initialize the Nextion display
     setBrightness(20); // Turn on the backlight
     sendCmd("page 0"); // Display page 0
-    sendCmd("vis gps,0"); // Turn off the satellite picture
+    sendCmd("vis temp,0"); // Turn off overheating indicator
 
 // not much going on in the main loop. not yet anyway.
 
@@ -320,6 +324,14 @@ int main()
             //printf("%d\n", sentences_rxed);
         }
 */
+        if (haveFix != oldFix) {
+            if (haveFix) {
+                sendCmd("vis gps,1"); // Set the satellite picture
+            } else {
+                sendCmd("vis gps,0"); // Set the satellite picture
+            }
+            oldFix = haveFix;
+        }
         if (lat != oldlat) {
             setLat(lat);
             oldlat = lat;
@@ -333,6 +345,6 @@ int main()
             oldspeed = speed;
         }
 
-        sleep_ms(100);
+        sleep_ms(50);
     }
 }
